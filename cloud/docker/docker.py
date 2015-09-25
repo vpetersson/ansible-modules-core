@@ -198,6 +198,14 @@ options:
     description:
       - Pass a dict of environment variables to the container.
     default: null
+  env_file:
+    description:
+      - Pass in a path to a file with environment variable (FOO=BAR).
+        If a key value is present in both explicitly presented (i.e. as 'env')
+        and in the environment file, the explicit value will override.
+        Requires docker-py >= 1.4.0.
+    default: null
+    required: false
   dns:
     description:
       - List of custom DNS servers for the container.
@@ -650,6 +658,7 @@ class DockerManager(object):
             self.links = self.get_links(self.module.params.get('links'))
 
         self.env = self.module.params.get('env', None)
+        self.env_file = self.module.params.get('env_file', None)
 
         # Connect to the docker server using any configured host and TLS settings.
 
@@ -1101,12 +1110,20 @@ class DockerManager(object):
             # ENVIRONMENT
             # actual_env is likely to include environment variables injected by
             # the Dockerfile.
+            # If environment files are combined with explicit environment variables,
+            # the explicit environment variables will override the KW from the env file.
 
             expected_env = {}
 
             for image_env in image['ContainerConfig']['Env'] or []:
                 name, value = image_env.split('=', 1)
                 expected_env[name] = value
+
+            if self.env_file:
+                parse_env_file = docker.utils.parse_env_file(self.env_file)
+
+                for name, value in parse_env_file.iteritems():
+                    expected_env[name] = str(value)
 
             if self.env:
                 for name, value in self.env.iteritems():
@@ -1646,6 +1663,7 @@ def main():
             hostname        = dict(default=None),
             domainname      = dict(default=None),
             env             = dict(type='dict'),
+            env_file        = dict(default=None),
             dns             = dict(),
             detach          = dict(default=True, type='bool'),
             state           = dict(default='started', choices=['present', 'started', 'reloaded', 'restarted', 'stopped', 'killed', 'absent', 'running']),
