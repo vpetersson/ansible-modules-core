@@ -176,14 +176,18 @@ class DockerImageManager:
         filtered_images = []
         images = self.client.images()
         for i in images:
-            # Docker-py version >= 0.3 (Docker API >= 1.8)
-            if 'RepoTags' in i:
-                repotag = ':'.join([self.name, self.tag])
-                if not self.name or repotag in i['RepoTags']:
+            # Super ugly brute force workaround
+            try:
+                # Docker-py version >= 0.3 (Docker API >= 1.8)
+                if 'RepoTags' in i:
+                    repotag = ':'.join([self.name, self.tag])
+                    if not self.name or repotag in i['RepoTags']:
+                        filtered_images.append(i)
+                # Docker-py version < 0.3 (Docker API < 1.8)
+                elif (not self.name or self.name == i['Repository']) and (not self.tag or self.tag == i['Tag']):
                     filtered_images.append(i)
-            # Docker-py version < 0.3 (Docker API < 1.8)
-            elif (not self.name or self.name == i['Repository']) and (not self.tag or self.tag == i['Tag']):
-                filtered_images.append(i)
+            except:
+                pass
         return filtered_images
 
     def remove_images(self):
@@ -245,7 +249,7 @@ def main():
 
     except RequestException as e:
         module.exit_json(failed=True, changed=manager.has_changed(), msg=repr(e))
-        
+
 # import module snippets
 from ansible.module_utils.basic import *
 
